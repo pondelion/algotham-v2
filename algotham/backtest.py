@@ -19,6 +19,15 @@ class BackTest:
         execution_lag: int = 1,
         df_ref_data: Optional[Dict[str, pd.DataFrame]] = None,
     ):
+        """_summary_
+
+        Args:
+            dt_index (pd.DatetimeIndex): _description_
+            strategy (BaseStrategy): _description_
+            init_portfolio (Portfolio, optional): _description_. Defaults to Portfolio(init_cash=10000).
+            execution_lag (int, optional): _description_. Defaults to 1.
+            df_ref_data (Optional[Dict[str, pd.DataFrame]], optional): _description_. Defaults to None.
+        """
         self._dt_index = dt_index
         self._portfolio = init_portfolio
         self._strategy = strategy
@@ -28,7 +37,13 @@ class BackTest:
 
     def run(
         self, start_dt: Optional[datetime] = None, end_dt: Optional[datetime] = None
-    ):
+    ) -> None:
+        """_summary_
+
+        Args:
+            start_dt (Optional[datetime], optional): _description_. Defaults to None.
+            end_dt (Optional[datetime], optional): _description_. Defaults to None.
+        """
         if start_dt is None:
             start_dt = self._dt_index.min()
         else:
@@ -55,7 +70,21 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            order_type (OrderType): _description_
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         if execution_lag is None:
             execution_lag = self._execution_lag
         order = Order(
@@ -81,7 +110,20 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         assert abs_size > 0, "size must be positive"
         return self._buy_and_sell(
             order_type=OrderType.BUY,
@@ -101,7 +143,20 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         assert abs_size > 0, "size must be positive"
         return self._buy_and_sell(
             order_type=OrderType.SELL,
@@ -122,7 +177,21 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            order_type (OrderType): _description_
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         if execution_lag is None:
             execution_lag = self._execution_lag
         order = Order(
@@ -146,7 +215,20 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         assert abs_size > 0, "size must be positive"
         return self._close_position(
             order_type=OrderType.CLOSE_LONG,
@@ -166,7 +248,20 @@ class BackTest:
         dt_idx: pd.Timestamp,
         idx: int,
         execution_lag: Optional[int] = None,
-    ):
+    ) -> Order:
+        """_summary_
+
+        Args:
+            asset_name (str): _description_
+            sr_ref_price (pd.Series): _description_
+            abs_size (float): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+            execution_lag (Optional[int], optional): _description_. Defaults to None.
+
+        Returns:
+            Order: _description_
+        """
         assert abs_size > 0, "size must be positive"
         return self._close_position(
             order_type=OrderType.CLOSE_SHORT,
@@ -178,7 +273,13 @@ class BackTest:
             execution_lag=execution_lag,
         )
 
-    def _process_orders(self, dt_idx: pd.Timestamp, idx: int):
+    def _process_orders(self, dt_idx: pd.Timestamp, idx: int) -> None:
+        """_summary_
+
+        Args:
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+        """
         unprocess_orders = [
             order for order in self._orders if order.status == OrderStatus.UNPROCESSED
         ]
@@ -189,7 +290,16 @@ class BackTest:
             ):
                 self._process_single_order(order, dt_idx, idx)
 
-    def _process_single_order(self, order: Order, dt_idx: pd.Timestamp, idx: int):
+    def _process_single_order(
+        self, order: Order, dt_idx: pd.Timestamp, idx: int
+    ) -> None:
+        """_summary_
+
+        Args:
+            order (Order): _description_
+            dt_idx (pd.Timestamp): _description_
+            idx (int): _description_
+        """
         if order.status == OrderStatus.UNPROCESSED:
             price = order.sr_ref_price.loc[dt_idx]
             abs_size = order.abs_size
@@ -204,7 +314,22 @@ class BackTest:
                     order.executed_price = price
                     order.executed_size = abs_size
                 else:
-                    order.status = OrderStatus.CANCELED
+                    # dont have enough cash to buy asset_name
+                    mode = 0
+                    if mode == 0:
+                        # cancel buy
+                        order.status = OrderStatus.CANCELED
+                    elif mode == 1:
+                        # buy asset_name as much as possible with current cash
+                        abs_size = 0.99 * (self._portfolio.cash / price)
+                        self._portfolio.bought_asset(
+                            asset_name=order.asset_name,
+                            size=abs_size,
+                            paid_cash=price * abs_size,
+                        )
+                        order.status = OrderStatus.PROCESSED
+                        order.executed_price = price
+                        order.executed_size = abs_size
                 order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.SELL:
                 self._portfolio.sold_asset(
@@ -217,23 +342,74 @@ class BackTest:
                 order.executed_size = abs_size
                 order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.CLOSE_LONG:
-                pass
+                holding_target_asset_amount = self._portfolio.other_asset(
+                    name=order.asset_name
+                )
+                if holding_target_asset_amount > 0:
+                    abs_size = min(abs_size, holding_target_asset_amount)
+                    self._portfolio.sold_asset(
+                        asset_name=order.asset_name,
+                        size=abs_size,
+                        gained_cash=price * abs_size,
+                    )
+                    order.status = OrderStatus.PROCESSED
+                    order.executed_price = price
+                    order.executed_size = abs_size
+                    order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.CLOSE_SHORT:
-                pass
+                holding_target_asset_amount = self._portfolio.other_asset(
+                    name=order.asset_name
+                )
+                if holding_target_asset_amount < 0:
+                    abs_size = min(abs_size, abs(holding_target_asset_amount))
+                    self._portfolio.bought_asset(
+                        asset_name=order.asset_name,
+                        size=abs_size,
+                        paid_cash=price * abs_size,
+                    )
+                    order.status = OrderStatus.PROCESSED
+                    order.executed_price = price
+                    order.executed_size = abs_size
             self._strategy.on_order_processed(order, self, dt_idx=dt_idx)
 
     def dt_idx2idx(self, dt_idx: pd.Timestamp) -> int:
+        """_summary_
+
+        Args:
+            dt_idx (pd.Timestamp): _description_
+
+        Returns:
+            int: _description_
+        """
         return np.where(self._dt_index == dt_idx)[0][0]
 
     def idx2dt_idx(self, idx: int) -> pd.Timestamp:
+        """_summary_
+
+        Args:
+            idx (int): _description_
+
+        Returns:
+            pd.Timestamp: _description_
+        """
         return self._dt_index[idx]
 
     @property
     def order_history(self) -> pd.DataFrame:
+        """_summary_
+
+        Returns:
+            pd.DataFrame: _description_
+        """
         order_dicts = [order.__dict__ for order in self._orders]
         [o.pop("sr_ref_price") for o in order_dicts]
         return pd.DataFrame(order_dicts)
 
     @property
     def df_ref_data(self) -> Optional[Dict[str, pd.DataFrame]]:
+        """_summary_
+
+        Returns:
+            Optional[Dict[str, pd.DataFrame]]: _description_
+        """
         return self._df_ref_data

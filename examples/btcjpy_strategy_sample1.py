@@ -96,7 +96,7 @@ df_evaluated_assets_hitory = pf.evaluated_assets_hitory(
     ref_prices={"BTC_JPY": df_btcjpy_sell["price_mean"]}
 )
 print(df_evaluated_assets_hitory)
-df_evaluated_assets_hitory["pnl"].plot()  # total profit/loss
+# df_evaluated_assets_hitory["pnl"].plot()  # total profit/loss
 
 # order history
 df_order_history = bt.order_history

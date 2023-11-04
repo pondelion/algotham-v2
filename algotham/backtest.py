@@ -8,6 +8,7 @@ from fastprogress import progress_bar as pb
 from .order import Order, OrderStatus, OrderType
 from .portfolio import Portfolio
 from .strategy import BaseStrategy
+from .utils.logger import Logger
 
 
 class BackTest:
@@ -313,97 +314,23 @@ class BackTest:
             abs_size = order.abs_size
             if order.order_type == OrderType.BUY:
                 assert (abs_size is not None) and (abs_size > 0), "this does not happen"
-                if self._portfolio.can_buy(price * abs_size):
-                    self._portfolio.bought_asset(
-                        asset_name=order.asset_name,
-                        size=abs_size,
-                        paid_cash=price * abs_size,
-                    )
-                    order.status = OrderStatus.PROCESSED
-                    order.executed_price = price
-                    order.executed_size = abs_size
-                else:
-                    # dont have enough cash to buy asset_name
-                    mode = 0
-                    if mode == 0:
-                        # cancel buy
-                        order.status = OrderStatus.CANCELED
-                    elif mode == 1:
-                        # buy asset_name as much as possible with current cash
-                        abs_size = 0.99 * (self._portfolio.cash / price)
-                        self._portfolio.bought_asset(
-                            asset_name=order.asset_name,
-                            size=abs_size,
-                            paid_cash=price * abs_size,
-                        )
-                        order.status = OrderStatus.PROCESSED
-                        order.executed_price = price
-                        order.executed_size = abs_size
-                order.executed_timestamp = dt_idx
+                self._process_single_buy_order(
+                    dt_idx=dt_idx, order=order, price=price, abs_size=abs_size
+                )
             elif order.order_type == OrderType.SELL:
                 assert (abs_size is not None) and (abs_size > 0), "this does not happen"
-                self._portfolio.sold_asset(
-                    asset_name=order.asset_name,
-                    size=abs_size,
-                    gained_cash=price * abs_size,
+                self._process_single_sell_order(
+                    dt_idx=dt_idx, order=order, price=price, abs_size=abs_size
                 )
-                order.status = OrderStatus.PROCESSED
-                order.executed_price = price
-                order.executed_size = abs_size
-                order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.CLOSE_LONG:
-                holding_target_asset_amount = self._portfolio.other_asset(
-                    name=order.asset_name
+                self._process_single_close_long_order(
+                    dt_idx=dt_idx, order=order, price=price, abs_size=abs_size
                 )
-                if order.close_target_order_id is not None:
-                    target_order = self.find_order_from_id(
-                        order_id=order.close_target_order_id
-                    )
-                    if target_order is not None:
-                        if target_order.order_type != OrderType.BUY:
-                            raise Exception(
-                                "target order type for OrderType.CLOSE_LONG must be OrderType.BUY"
-                            )
-                        abs_size = target_order.executed_size
-                if abs_size is None:
-                    abs_size = holding_target_asset_amount
-                if holding_target_asset_amount > 0:
-                    abs_size = min(abs_size, holding_target_asset_amount)
-                    self._portfolio.sold_asset(
-                        asset_name=order.asset_name,
-                        size=abs_size,
-                        gained_cash=price * abs_size,
-                    )
-                    order.status = OrderStatus.PROCESSED
-                    order.executed_price = price
-                    order.executed_size = abs_size
-                    order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.CLOSE_SHORT:
-                holding_target_asset_amount = self._portfolio.other_asset(
-                    name=order.asset_name
+                self._process_single_close_short_order(
+                    dt_idx=dt_idx, order=order, price=price, abs_size=abs_size
                 )
-                if order.close_target_order_id is not None:
-                    target_order = self.find_order_from_id(
-                        order_id=order.close_target_order_id
-                    )
-                    if target_order is not None:
-                        if target_order.order_type != OrderType.SELL:
-                            raise Exception(
-                                "target order type for OrderType.CLOSE_SHORT must be OrderType.SELL"
-                            )
-                        abs_size = target_order.executed_size
-                if abs_size is None:
-                    abs_size = holding_target_asset_amount
-                if holding_target_asset_amount < 0:
-                    abs_size = min(abs_size, abs(holding_target_asset_amount))
-                    self._portfolio.bought_asset(
-                        asset_name=order.asset_name,
-                        size=abs_size,
-                        paid_cash=price * abs_size,
-                    )
-                    order.status = OrderStatus.PROCESSED
-                    order.executed_price = price
-                    order.executed_size = abs_size
+
             self._strategy.on_order_processed(order, self, dt_idx=dt_idx)
 
     def dt_idx2idx(self, dt_idx: pd.Timestamp) -> int:
@@ -453,3 +380,128 @@ class BackTest:
             if order.order_id == order_id:
                 return order
         return None
+
+    def _process_single_buy_order(
+        self,
+        dt_idx: pd.Timestamp,
+        order: Order,
+        price: float,
+        abs_size: float,
+    ) -> None:
+        if self._portfolio.can_buy(price * abs_size):
+            self._portfolio.bought_asset(
+                asset_name=order.asset_name,
+                size=abs_size,
+                paid_cash=int(price * abs_size),
+            )
+            order.status = OrderStatus.PROCESSED
+            order.executed_price = price
+            order.executed_size = abs_size
+        else:
+            # dont have enough cash to buy asset_name
+            mode = 0
+            if mode == 0:
+                # cancel buy
+                order.status = OrderStatus.CANCELED
+            elif mode == 1:
+                # buy asset_name as much as possible with current cash
+                abs_size = 0.99 * (self._portfolio.cash / price)
+                self._portfolio.bought_asset(
+                    asset_name=order.asset_name,
+                    size=abs_size,
+                    paid_cash=int(price * abs_size),
+                )
+                order.status = OrderStatus.PROCESSED
+                order.executed_price = price
+                order.executed_size = abs_size
+        order.executed_timestamp = dt_idx
+
+    def _process_single_sell_order(
+        self,
+        dt_idx: pd.Timestamp,
+        order: Order,
+        price: float,
+        abs_size: float,
+    ) -> None:
+        self._portfolio.sold_asset(
+            asset_name=order.asset_name,
+            size=abs_size,
+            gained_cash=int(price * abs_size),
+        )
+        order.status = OrderStatus.PROCESSED
+        order.executed_price = price
+        order.executed_size = abs_size
+        order.executed_timestamp = dt_idx
+
+    def _process_single_close_long_order(
+        self,
+        dt_idx: pd.Timestamp,
+        order: Order,
+        price: float,
+        abs_size: Optional[float] = None,
+    ) -> None:
+        holding_target_asset_amount = self._portfolio.other_asset(name=order.asset_name)
+        if order.close_target_order_id is not None:
+            target_order = self.find_order_from_id(order_id=order.close_target_order_id)
+            if target_order is not None:
+                if target_order.order_type != OrderType.BUY:
+                    raise Exception(
+                        "target order type for OrderType.CLOSE_LONG must be OrderType.BUY"
+                    )
+                abs_size = target_order.executed_size
+                if abs_size is None:
+                    Logger.w(
+                        "_process_single_order",
+                        f"close target order ({order.close_target_order_id}) is specified "
+                        f"but abs_size for close order ({order.order_id}) is None, "
+                        "maybe smoething wrong.",
+                    )
+        if abs_size is None:
+            abs_size = holding_target_asset_amount
+        if holding_target_asset_amount > 0:
+            abs_size = min(abs_size, holding_target_asset_amount)
+            self._portfolio.sold_asset(
+                asset_name=order.asset_name,
+                size=abs_size,
+                gained_cash=int(price * abs_size),
+            )
+            order.status = OrderStatus.PROCESSED
+            order.executed_price = price
+            order.executed_size = abs_size
+            order.executed_timestamp = dt_idx
+
+    def _process_single_close_short_order(
+        self,
+        dt_idx: pd.Timestamp,
+        order: Order,
+        price: float,
+        abs_size: Optional[float] = None,
+    ) -> None:
+        holding_target_asset_amount = self._portfolio.other_asset(name=order.asset_name)
+        if order.close_target_order_id is not None:
+            target_order = self.find_order_from_id(order_id=order.close_target_order_id)
+            if target_order is not None:
+                if target_order.order_type != OrderType.SELL:
+                    raise Exception(
+                        "target order type for OrderType.CLOSE_SHORT must be OrderType.SELL"
+                    )
+                abs_size = target_order.executed_size
+                if abs_size is None:
+                    Logger.w(
+                        "_process_single_order",
+                        f"For close order ({order.order_id}), close target order ({order.close_target_order_id}) "
+                        "is specified but abs_size for target order is None, "
+                        "maybe smoething wrong.",
+                    )
+        if abs_size is None:
+            abs_size = holding_target_asset_amount
+        if holding_target_asset_amount < 0:
+            abs_size = min(abs_size, abs(holding_target_asset_amount))
+            self._portfolio.bought_asset(
+                asset_name=order.asset_name,
+                size=abs_size,
+                paid_cash=int(price * abs_size),
+            )
+            order.status = OrderStatus.PROCESSED
+            order.executed_price = price
+            order.executed_size = abs_size

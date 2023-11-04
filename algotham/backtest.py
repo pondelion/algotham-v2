@@ -360,6 +360,10 @@ class BackTest:
                         order_id=order.close_target_order_id
                     )
                     if target_order is not None:
+                        if target_order.order_type != OrderType.BUY:
+                            raise Exception(
+                                "target order type for OrderType.CLOSE_LONG must be OrderType.BUY"
+                            )
                         abs_size = target_order.executed_size
                 if abs_size is None:
                     abs_size = holding_target_asset_amount
@@ -383,6 +387,10 @@ class BackTest:
                         order_id=order.close_target_order_id
                     )
                     if target_order is not None:
+                        if target_order.order_type != OrderType.SELL:
+                            raise Exception(
+                                "target order type for OrderType.CLOSE_SHORT must be OrderType.SELL"
+                            )
                         abs_size = target_order.executed_size
                 if abs_size is None:
                     abs_size = holding_target_asset_amount

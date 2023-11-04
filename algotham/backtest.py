@@ -417,7 +417,7 @@ class BackTest:
         """
         return np.where(self._dt_index == dt_idx)[0][0]
 
-    def idx2dt_idx(self, idx: int) -> pd.Timestamp:
+    def idx2dt_idx(self, idx: int) -> Optional[pd.Timestamp]:
         """_summary_
 
         Args:
@@ -426,7 +426,7 @@ class BackTest:
         Returns:
             pd.Timestamp: _description_
         """
-        return self._dt_index[idx]
+        return self._dt_index[idx] if idx < len(self._dt_index) else None
 
     @property
     def order_history(self) -> pd.DataFrame:

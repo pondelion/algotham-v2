@@ -173,10 +173,11 @@ class BackTest:
         order_type: OrderType,
         asset_name: str,
         sr_ref_price: pd.Series,
-        abs_size: float,
         dt_idx: pd.Timestamp,
         idx: int,
+        abs_size: Optional[float] = None,
         execution_lag: Optional[int] = None,
+        close_target_order_id: Optional[str] = None,
     ) -> Order:
         """_summary_
 
@@ -202,6 +203,7 @@ class BackTest:
             price_at_ordertime=sr_ref_price.loc[dt_idx],
             execution_timestamp=self.idx2dt_idx(idx + execution_lag),
             sr_ref_price=sr_ref_price,
+            close_target_order_id=close_target_order_id,
         )
         self._orders.append(order)
         self._strategy.on_order_accepted(order, self, dt_idx=dt_idx)
@@ -211,10 +213,11 @@ class BackTest:
         self,
         asset_name: str,
         sr_ref_price: pd.Series,
-        abs_size: float,
         dt_idx: pd.Timestamp,
         idx: int,
+        abs_size: Optional[float] = None,
         execution_lag: Optional[int] = None,
+        close_target_order_id: Optional[str] = None,
     ) -> Order:
         """_summary_
 
@@ -229,7 +232,8 @@ class BackTest:
         Returns:
             Order: _description_
         """
-        assert abs_size > 0, "size must be positive"
+        if abs_size is not None:
+            assert abs_size > 0, "size must be positive"
         return self._close_position(
             order_type=OrderType.CLOSE_LONG,
             asset_name=asset_name,
@@ -238,16 +242,18 @@ class BackTest:
             dt_idx=dt_idx,
             idx=idx,
             execution_lag=execution_lag,
+            close_target_order_id=close_target_order_id,
         )
 
     def close_short(
         self,
         asset_name: str,
         sr_ref_price: pd.Series,
-        abs_size: float,
         dt_idx: pd.Timestamp,
         idx: int,
+        abs_size: Optional[float] = None,
         execution_lag: Optional[int] = None,
+        close_target_order_id: Optional[str] = None,
     ) -> Order:
         """_summary_
 
@@ -262,7 +268,8 @@ class BackTest:
         Returns:
             Order: _description_
         """
-        assert abs_size > 0, "size must be positive"
+        if abs_size is not None:
+            assert abs_size > 0, "size must be positive"
         return self._close_position(
             order_type=OrderType.CLOSE_SHORT,
             asset_name=asset_name,
@@ -271,6 +278,7 @@ class BackTest:
             dt_idx=dt_idx,
             idx=idx,
             execution_lag=execution_lag,
+            close_target_order_id=close_target_order_id,
         )
 
     def _process_orders(self, dt_idx: pd.Timestamp, idx: int) -> None:
@@ -304,6 +312,7 @@ class BackTest:
             price = order.sr_ref_price.loc[dt_idx]
             abs_size = order.abs_size
             if order.order_type == OrderType.BUY:
+                assert (abs_size is not None) and (abs_size > 0), "this does not happen"
                 if self._portfolio.can_buy(price * abs_size):
                     self._portfolio.bought_asset(
                         asset_name=order.asset_name,
@@ -332,6 +341,7 @@ class BackTest:
                         order.executed_size = abs_size
                 order.executed_timestamp = dt_idx
             elif order.order_type == OrderType.SELL:
+                assert (abs_size is not None) and (abs_size > 0), "this does not happen"
                 self._portfolio.sold_asset(
                     asset_name=order.asset_name,
                     size=abs_size,
@@ -345,6 +355,14 @@ class BackTest:
                 holding_target_asset_amount = self._portfolio.other_asset(
                     name=order.asset_name
                 )
+                if order.close_target_order_id is not None:
+                    target_order = self.find_order_from_id(
+                        order_id=order.close_target_order_id
+                    )
+                    if target_order is not None:
+                        abs_size = target_order.executed_size
+                if abs_size is None:
+                    abs_size = holding_target_asset_amount
                 if holding_target_asset_amount > 0:
                     abs_size = min(abs_size, holding_target_asset_amount)
                     self._portfolio.sold_asset(
@@ -360,6 +378,14 @@ class BackTest:
                 holding_target_asset_amount = self._portfolio.other_asset(
                     name=order.asset_name
                 )
+                if order.close_target_order_id is not None:
+                    target_order = self.find_order_from_id(
+                        order_id=order.close_target_order_id
+                    )
+                    if target_order is not None:
+                        abs_size = target_order.executed_size
+                if abs_size is None:
+                    abs_size = holding_target_asset_amount
                 if holding_target_asset_amount < 0:
                     abs_size = min(abs_size, abs(holding_target_asset_amount))
                     self._portfolio.bought_asset(
@@ -413,3 +439,9 @@ class BackTest:
             Optional[Dict[str, pd.DataFrame]]: _description_
         """
         return self._df_ref_data
+
+    def find_order_from_id(self, order_id: str) -> Optional[Order]:
+        for order in self._orders:
+            if order.order_id == order_id:
+                return order
+        return None

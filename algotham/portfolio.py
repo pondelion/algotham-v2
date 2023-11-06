@@ -135,7 +135,7 @@ class Portfolio:
             gained_cash (int): _description_
         """
         assert asset_name != "cash", "asset_name must not be cash"
-        assert gained_cash > 0, "gained_cash must be positive"
+        assert gained_cash > 0, f"gained_cash must be positive => {gained_cash}"
         if asset_name in self._other_assets:
             self._other_assets[asset_name] -= size
         else:

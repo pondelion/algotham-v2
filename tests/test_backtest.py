@@ -99,7 +99,7 @@ class SampleStrategy2(BaseStrategy):
                 idx=idx,
                 execution_lag=1,
             )
-            order_close = bt.close_long(
+            _ = bt.close_long(
                 asset_name="BTC_JPY",
                 sr_ref_price=bt.df_ref_data["btcjpy_sell"]["price_ohlc_open"],  # type: ignore
                 # abs_size=0.01,
@@ -118,7 +118,7 @@ class SampleStrategy2(BaseStrategy):
                 idx=idx,
                 execution_lag=1,
             )
-            order_close = bt.close_short(
+            _ = bt.close_short(
                 asset_name="BTC_JPY",
                 sr_ref_price=bt.df_ref_data["btcjpy_buy"]["price_ohlc_open"],  # type: ignore
                 # abs_size=0.01,
@@ -149,12 +149,87 @@ class SampleStrategy2(BaseStrategy):
         print(f"[{dt_idx}] on_order_processed {order.order_type}, {order.order_id}")
 
 
+class SampleStrategy3(BaseStrategy):
+    def next(self, dt_idx: pd.Timestamp, idx: int, bt: "BackTest"):
+        print(idx, dt_idx, bt.df_ref_data["btcjpy_buy"].loc[dt_idx]["price_mean"])  # type: ignore
+        if idx < 20:
+            return
+        # using past 20 periods feature data for prediction
+        s_idx = idx + 1 - 20
+        e_idx = idx + 1
+        df_feat = bt.df_ref_data["btcjpy_buy"].iloc[s_idx:e_idx]  # type: ignore
+        assert df_feat.index.max() == dt_idx, (
+            "index mismatch",
+            df_feat.index.max(),
+            dt_idx,
+        )
+        pred = self._mock_daily_prediction(df_feat)
+        if pred == 1:
+            order = bt.buy(
+                asset_name="BTC_JPY",
+                sr_ref_price=bt.df_ref_data["btcjpy_buy"]["price_ohlc_open"],  # type: ignore
+                abs_size=0.01,
+                dt_idx=dt_idx,
+                idx=idx,
+                execution_lag=1,
+            )
+            _ = bt.close_long(
+                asset_name="BTC_JPY",
+                sr_ref_price=bt.df_ref_data["btcjpy_sell"]["price_ohlc_open"],  # type: ignore
+                # abs_size=0.01,
+                dt_idx=dt_idx,
+                idx=idx,
+                execution_lag=1 + 10,
+                close_target_order_id=order.order_id,
+            )
+            # print(order)
+        elif pred == -1:
+            order = bt.sell(
+                asset_name="BTC_JPY",
+                sr_ref_price=bt.df_ref_data["btcjpy_sell"]["price_ohlc_open"],  # type: ignore
+                abs_size=0.01,
+                dt_idx=dt_idx,
+                idx=idx,
+                execution_lag=1,
+            )
+            _ = bt.close_short(
+                asset_name="BTC_JPY",
+                sr_ref_price=bt.df_ref_data["btcjpy_buy"]["price_ohlc_open"],  # type: ignore
+                # abs_size=0.01,
+                dt_idx=dt_idx,
+                idx=idx,
+                execution_lag=1 + 10,
+                close_target_order_id=order.order_id,
+            )
+            # print(order)
+
+    def _mock_daily_prediction(self, df_feat: pd.DataFrame) -> int:
+        rnd = np.random.random()
+        if rnd <= 0.4:
+            return 1  # buy
+        elif rnd < 0.6:
+            return 0  # do nothing
+        else:
+            return -1  # sell
+
+    def on_order_accepted(
+        self, order: Order, bt: "BackTest", dt_idx: Optional[pd.Timestamp] = None
+    ):
+        print(f"[{dt_idx}] on_order_accepted {order.order_type}, {order.order_id}")
+
+    def on_order_processed(
+        self, order: Order, bt: "BackTest", dt_idx: Optional[pd.Timestamp] = None
+    ):
+        print(f"[{dt_idx}] on_order_processed {order.order_type}, {order.order_id}")
+
+
 class TestBacktest:
     @pytest.mark.parametrize(
         ["stragegy_cls"],
         [
             [SampleStrategy1],
             [SampleStrategy2],
+            [SampleStrategy3],
         ],
     )
     def test_backtest_with_sample_strategy1(self, stragegy_cls):
@@ -195,7 +270,17 @@ class TestBacktest:
                 "executed_size",
                 "status",
                 "order_id",
+                "canceled_reason",
             ]
         ) == set(df_order_history.columns)
         assert len(df_order_history) > 0
         # df_evaluated_assets_hitory['pnl'].plot()
+        df_order_history_processed = df_order_history[
+            df_order_history.status.map(lambda x: x.value) == "PROCESSED"
+        ]
+        assert len(df_order_history_processed) > 0
+        assert (~df_order_history_processed.executed_timestamp.isnull()).all()
+        assert (
+            df_order_history_processed.execution_timestamp
+            == df_order_history_processed.executed_timestamp
+        ).all()

@@ -298,6 +298,19 @@ class BackTest:
                 and order.execution_timestamp <= dt_idx
             ):
                 self._process_single_order(order, dt_idx, idx)
+                if (
+                    order.executed_timestamp is not None
+                    and order.execution_timestamp != order.executed_timestamp
+                ):
+                    Logger.w(
+                        "Backtest._process_orders",
+                        "order.execution_timestamp does not match order.executed_timestamp. "
+                        f"dt_idx :{dt_idx}, order.execution_timestamp : {order.execution_timestamp}, "
+                        f"order.executed_timestamp : {order.executed_timestamp}, order_id : {order.order_id}, "
+                        f"order.order_type : {order.order_type}",
+                    )
+                if order.execution_timestamp != dt_idx:
+                    assert "this does not happen", (order.execution_timestamp, dt_idx)
 
     def _process_single_order(
         self, order: Order, dt_idx: pd.Timestamp, idx: int
@@ -362,7 +375,7 @@ class BackTest:
         Returns:
             pd.DataFrame: _description_
         """
-        order_dicts = [order.__dict__ for order in self._orders]
+        order_dicts = [order.__dict__.copy() for order in self._orders]
         [o.pop("sr_ref_price") for o in order_dicts]
         return pd.DataFrame(order_dicts)
 
@@ -403,6 +416,7 @@ class BackTest:
             if mode == 0:
                 # cancel buy
                 order.status = OrderStatus.CANCELED
+                order.canceled_reason = f"no enough cash to buy {order.asset_name}"
             elif mode == 1:
                 # buy asset_name as much as possible with current cash
                 abs_size = 0.99 * (self._portfolio.cash / price)
@@ -452,23 +466,32 @@ class BackTest:
                 if abs_size is None:
                     Logger.w(
                         "_process_single_order",
-                        f"close target order ({order.close_target_order_id}) is specified "
-                        f"but abs_size for close order ({order.order_id}) is None, "
+                        f"For close order ({order.order_id}), close target order ({order.close_target_order_id}) "
+                        "is specified but executed_size for target order is None, "
                         "maybe smoething wrong.",
                     )
         if abs_size is None:
             abs_size = holding_target_asset_amount
         if holding_target_asset_amount > 0:
             abs_size = min(abs_size, holding_target_asset_amount)
-            self._portfolio.sold_asset(
-                asset_name=order.asset_name,
-                size=abs_size,
-                gained_cash=int(price * abs_size),
-            )
-            order.status = OrderStatus.PROCESSED
+            if int(price * abs_size) > 0:
+                self._portfolio.sold_asset(
+                    asset_name=order.asset_name,
+                    size=abs_size,
+                    gained_cash=int(price * abs_size),
+                )
+                order.status = OrderStatus.PROCESSED
+            else:
+                order.status = OrderStatus.CANCELED
+                order.canceled_reason = "int(price * abs_size) = 0"
             order.executed_price = price
             order.executed_size = abs_size
             order.executed_timestamp = dt_idx
+        else:
+            order.status = OrderStatus.CANCELED
+            order.canceled_reason = (
+                f"holding_target_asset_amount(={holding_target_asset_amount}) <= 0"
+            )
 
     def _process_single_close_short_order(
         self,
@@ -490,18 +513,28 @@ class BackTest:
                     Logger.w(
                         "_process_single_order",
                         f"For close order ({order.order_id}), close target order ({order.close_target_order_id}) "
-                        "is specified but abs_size for target order is None, "
+                        "is specified but executed_size for target order is None, "
                         "maybe smoething wrong.",
                     )
         if abs_size is None:
             abs_size = holding_target_asset_amount
         if holding_target_asset_amount < 0:
             abs_size = min(abs_size, abs(holding_target_asset_amount))
-            self._portfolio.bought_asset(
-                asset_name=order.asset_name,
-                size=abs_size,
-                paid_cash=int(price * abs_size),
-            )
-            order.status = OrderStatus.PROCESSED
+            if int(price * abs_size) > 0:
+                self._portfolio.bought_asset(
+                    asset_name=order.asset_name,
+                    size=abs_size,
+                    paid_cash=int(price * abs_size),
+                )
+                order.status = OrderStatus.PROCESSED
+            else:
+                order.status = OrderStatus.CANCELED
+                order.canceled_reason = "int(price * abs_size) = 0"
             order.executed_price = price
             order.executed_size = abs_size
+            order.executed_timestamp = dt_idx
+        else:
+            order.status = OrderStatus.CANCELED
+            order.canceled_reason = (
+                f"holding_target_asset_amount(={holding_target_asset_amount}) <= 0"
+            )

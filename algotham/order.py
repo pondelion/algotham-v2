@@ -34,3 +34,4 @@ class Order:
     status: OrderStatus = OrderStatus.UNPROCESSED
     order_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     close_target_order_id: Optional[str] = None
+    canceled_reason: Optional[str] = None

@@ -139,7 +139,6 @@ class Portfolio:
         if asset_name in self._other_assets:
             self._other_assets[asset_name] -= size
         else:
-            # 空売り
             self._other_assets[asset_name] = -size
         self._cash += gained_cash
 

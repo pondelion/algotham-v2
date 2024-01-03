@@ -284,3 +284,4 @@ class TestBacktest:
             df_order_history_processed.execution_timestamp
             == df_order_history_processed.executed_timestamp
         ).all()
+        bt.order_history
